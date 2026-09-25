@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.qodo/
+
+# Large files (do not upload)
+*.csv
+*.exe
+*.zip
+*.pdf
+OllamaSetup.exe
+Benign Traffic.csv
+DDoS ICMP Flood.csv
+misclassified_samples.csv
+terms-and-conditions.pdf
+
+# Data folders
+data/
+extra dataset/
+04.04.2026/
+notebook/
+reports/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Word documents
+*.docx
