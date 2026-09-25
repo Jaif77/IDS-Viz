@@ -35,9 +35,6 @@ st.markdown("""
     .reportview-container {
         background: #f0f2f6;
     }
-    .css-1aumxhk {
-        background-color: #ffffff;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -52,10 +49,6 @@ if 'metrics' not in st.session_state:
     st.session_state.metrics = None
 if 'selected_file' not in st.session_state:
     st.session_state.selected_file = None
-if 'y_test_boundary' not in st.session_state:
-    st.session_state.y_test_boundary = None
-if 'y_pred_boundary' not in st.session_state:
-    st.session_state.y_pred_boundary = None
 
 # ==================== HELPER FUNCTION ====================
 def find_label_column(df):
@@ -64,17 +57,14 @@ def find_label_column(df):
                      'Attack_Type', ' Attack_Type', 'attack_type',
                      'Class', ' Class', 'class', ' class']
     
-    # Try exact matches first
     for name in possible_names:
         if name in df.columns:
             return name
     
-    # Try keyword search
     for col in df.columns:
         if 'label' in col.lower() or 'attack' in col.lower() or 'class' in col.lower():
             return col
     
-    # Fallback to last column
     return df.columns[-1]
 
 # Sidebar
@@ -123,12 +113,11 @@ if page == "📂 Data Upload":
             if st.button("📥 Load Selected File", use_container_width=True):
                 with st.spinner("Loading dataset..."):
                     file_path = os.path.join(cic_path, selected_file)
-                    df = pd.read_csv(file_path, nrows=200000)
+                    df = pd.read_csv(file_path, nrows=50000)
                     
                     # Strip column names
                     df.columns = df.columns.str.strip()
                     
-                    # Find label column
                     label_col = find_label_column(df)
                     
                     st.session_state.df = df
@@ -147,12 +136,11 @@ if page == "📂 Data Upload":
         )
         
         if uploaded_file:
-            df = pd.read_csv(uploaded_file)
+            df = pd.read_csv(uploaded_file, nrows=50000)
             
             # Strip column names
             df.columns = df.columns.str.strip()
             
-            # Find label column
             label_col = find_label_column(df)
             
             st.session_state.df = df
@@ -173,7 +161,6 @@ if page == "📂 Data Upload":
             with metric_col2:
                 st.metric("Features", len(df.columns))
             
-            # ========== FIX: Use helper function for label detection ==========
             label_col = find_label_column(df)
             
             st.caption(f"📋 Using label column: `{label_col}`")
@@ -187,7 +174,6 @@ if page == "📂 Data Upload":
                 if len(unique_classes) > 5:
                     st.caption(f"... and {len(unique_classes)-5} more")
                 
-                # Multi-class pie chart
                 st.subheader("Class Distribution")
                 
                 class_counts = df[label_col].value_counts()
@@ -202,7 +188,6 @@ if page == "📂 Data Upload":
                 fig.update_layout(height=400, showlegend=True)
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Also show bar chart
                 fig_bar = px.bar(
                     x=class_counts.index.astype(str),
                     y=class_counts.values,
@@ -213,7 +198,6 @@ if page == "📂 Data Upload":
                 fig_bar.update_layout(height=400, xaxis_title="Class", yaxis_title="Count")
                 st.plotly_chart(fig_bar, use_container_width=True)
             else:
-                # Binary classification
                 if df[label_col].dtype == 'object':
                     attack_count = sum(df[label_col] != 'BENIGN')
                 else:
@@ -286,8 +270,8 @@ elif page == "⚙️ Model Training":
         sample_size = st.slider(
             "Training samples (rows):",
             min_value=1000,
-            max_value=100000,
-            value=50000,
+            max_value=50000,
+            value=10000,
             step=1000,
             help="Use more rows to include attacks."
         )
@@ -302,26 +286,26 @@ elif page == "⚙️ Model Training":
         if train_button:
             with st.spinner("🔄 Training model..."):
                 try:
-                    # ========== FIX: Use random sample instead of head ==========
+                    # ========== FIX: Random sample ==========
                     if len(st.session_state.df) > sample_size:
                         df = st.session_state.df.sample(n=sample_size, random_state=42)
                     else:
                         df = st.session_state.df
-            
+                    
                     trainer = st.session_state.trainer
                     X_train, X_test, y_train, y_test = trainer.prepare_data(df)
                     model = trainer.train_model(X_train, y_train, model_type)
                     metrics, y_pred, cm = trainer.evaluate_model(X_test, y_test)
-            
+                    
                     st.session_state.metrics = metrics
                     st.session_state.cm = cm
                     st.session_state.y_test = y_test
                     st.session_state.y_pred = y_pred
                     st.session_state.model_trained = True
                     st.session_state.current_model = model_type
-            
+                    
                     st.success("✅ Model trained successfully!")
-            
+                    
                 except Exception as e:
                     st.error(f"❌ Training failed: {str(e)}")
     
@@ -431,10 +415,6 @@ elif page == "⚙️ Model Training":
                 )
                 fig.update_layout(height=400)
                 st.plotly_chart(fig, use_container_width=True)
-                
-                if cm.size == 1:
-                    st.metric("Total Samples", cm[0, 0])
-                    st.caption("All samples belong to the same class. Try loading more rows.")
             
             if st.session_state.current_model in ['Random Forest', 'Decision Tree']:
                 st.subheader("🎯 Feature Importance")
@@ -502,7 +482,6 @@ elif page == "🔬 Decision Boundary":
             )
         except Exception as e:
             st.error(f"Export failed: {str(e)}")
-            st.info("Try using a smaller sample size or load fewer rows from your dataset.")
     
     st.markdown("---")
     
@@ -523,43 +502,39 @@ elif page == "🔬 Decision Boundary":
             min_value=500,
             max_value=10000,
             value=3000,
-            step=500,
-            help="More samples = better picture but slower to render"
+            step=500
         )
         
         visualize_btn = st.button("🎨 Generate Decision Map", use_container_width=True, type="primary")
     
     with col2:
         if visualize_btn:
-            with st.spinner("Generating decision boundary map... This may take 30-60 seconds"):
+            with st.spinner("Generating decision boundary map..."):
                 try:
-                    # ========== FIX 1: Random sample use korun ==========
+                    # ========== FIX: Random sample ==========
                     if len(st.session_state.df) > viz_samples:
                         df = st.session_state.df.sample(n=viz_samples, random_state=42)
                     else:
                         df = st.session_state.df
-            
+                    
                     trainer = st.session_state.trainer
-            
-                    # Prepare data (scaler notun kore fit hobe)
                     X_train, X_test, y_train, y_test = trainer.prepare_data(df)
-            
-                    # ========== FIX 2: MODEL RETRAIN KORUN ==========
+                    
+                    # ========== FIX: RETRAIN model ==========
                     model_type = st.session_state.get('current_model', 'Random Forest')
                     trainer.train_model(X_train, y_train, model_type)
-            
-                    # Ekhon model notun data diye trained
+                    
                     explorer = DecisionBoundaryExplorer(
                         trainer.model, 
                         trainer.scaler, 
                         trainer.feature_names
                     )
-            
+                    
                     X_2d, method_name = explorer.reduce_dimensions(
                         X_test, 
                         method=method_clean
                     )
-            
+                    
                     y_pred = trainer.model.predict(X_test)
                     
                     if hasattr(trainer.model, 'predict_proba'):
@@ -570,6 +545,12 @@ elif page == "🔬 Decision Boundary":
                         y_proba = None
                     
                     class_names = trainer.get_class_names()
+                    
+                    # ========== FIX: Convert class_names to list ==========
+                    if hasattr(class_names, 'tolist'):
+                        class_names = class_names.tolist()
+                    elif not isinstance(class_names, list):
+                        class_names = list(class_names)
                     
                     fig = explorer.create_scatter_plot(
                         X_2d, y_test, y_pred, 
@@ -606,7 +587,6 @@ elif page == "🔬 Decision Boundary":
                     
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
-                    st.info("Try reducing the sample size or switching to PCA if t-SNE is too slow.")
         else:
             st.info("👈 Click **Generate Decision Map** to visualize where your model succeeds and fails")
 
@@ -630,7 +610,7 @@ elif page == "🔧 Perturbation Lab":
     st.markdown("---")
     
     try:
-        df_sample = st.session_state.df.head(10000)
+        df_sample = st.session_state.df.head(5000)
         trainer = st.session_state.trainer
         
         X_train, X_test, y_train, y_test = trainer.prepare_data(df_sample)
@@ -643,6 +623,10 @@ elif page == "🔧 Perturbation Lab":
         y_pred_array = np.array(y_pred)
         
         class_names = trainer.get_class_names()
+        if hasattr(class_names, 'tolist'):
+            class_names = class_names.tolist()
+        elif not isinstance(class_names, list):
+            class_names = list(class_names)
         
         sample_df = pd.DataFrame(X_test_array[:, :5], columns=trainer.feature_names[:5])
         sample_df['True Label'] = y_test_array
@@ -673,16 +657,16 @@ elif page == "🔧 Perturbation Lab":
                 st.info("Try selecting 'All Samples' instead.")
                 st.stop()
             
+            # ========== FIX: Use reset_index for correct index ==========
+            filtered_df = filtered_df.reset_index(drop=True)
+            
             sample_index = st.selectbox(
                 f"Select a sample ({len(filtered_df)} available):",
-                range(len(filtered_df)),
-                format_func=lambda x: f"Sample {x} | True: {filtered_df.iloc[x]['True Label']} | Pred: {filtered_df.iloc[x]['Predicted']}"
+                range(len(filtered_df))
             )
         
-        if sample_filter == "All Samples":
-            actual_index = sample_index
-        else:
-            actual_index = filtered_df.index[sample_index]
+        # ========== FIX: Direct index use ==========
+        actual_index = sample_index
         
         st.markdown("---")
         
@@ -697,9 +681,9 @@ elif page == "🔧 Perturbation Lab":
         
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            st.metric("True Label", class_names[true_label] if true_label < len(class_names) else str(true_label))
+            st.metric("True Label", class_names[int(true_label)] if int(true_label) < len(class_names) else str(true_label))
         with col_b:
-            st.metric("Original Prediction", class_names[original_pred] if original_pred < len(class_names) else str(original_pred))
+            st.metric("Original Prediction", class_names[int(original_pred)] if int(original_pred) < len(class_names) else str(original_pred))
         with col_c:
             if original_proba is not None:
                 st.metric("Confidence", f"{max(original_proba):.2%}")
@@ -729,16 +713,20 @@ elif page == "🔧 Perturbation Lab":
                 col_idx = idx % 2
                 with cols[col_idx]:
                     original_val = sample[feature_idx]
-                    min_val = max(0, original_val * 0.1)
-                    max_val = original_val * 10 if original_val > 0 else 100
+                    min_val = float(min(0, original_val * 0.1))
+                    max_val = float(max(0.01, original_val * 10)) if original_val > 0 else 100.0
+                    
+                    # ========== FIX: Ensure min < max ==========
+                    if min_val >= max_val:
+                        max_val = min_val + 1
                     
                     new_val = st.slider(
                         f"📊 {feature_name[:30]}",
-                        min_value=float(min_val),
-                        max_value=float(max_val),
+                        min_value=min_val,
+                        max_value=max_val,
                         value=float(original_val),
-                        step=float(original_val / 50) if original_val != 0 else 0.01,
-                        key=f"perturb_{feature_idx}"
+                        step=float((max_val - min_val) / 100),
+                        key=f"perturb_{idx}"
                     )
                     
                     if new_val != original_val:
@@ -758,9 +746,9 @@ elif page == "🔧 Perturbation Lab":
             st.subheader("3. Result")
             
             if new_pred_class == original_pred:
-                st.success(f"✅ Prediction remains: **{class_names[new_pred_class]}**")
+                st.success(f"✅ Prediction remains: **{class_names[int(new_pred_class)]}**")
             else:
-                st.error(f"⚠️ PREDICTION FLIPPED! From **{class_names[original_pred]}** to **{class_names[new_pred_class]}**")
+                st.error(f"⚠️ PREDICTION FLIPPED! From **{class_names[int(original_pred)]}** to **{class_names[int(new_pred_class)]}**")
                 
                 if changes_made:
                     st.warning(f"📌 Changes made to: {', '.join(changes_made[:5])}")
@@ -837,11 +825,17 @@ else:
                     
                     rg = ReportGenerator()
                     
+                    class_names = st.session_state.trainer.get_class_names()
+                    if hasattr(class_names, 'tolist'):
+                        class_names = class_names.tolist()
+                    elif not isinstance(class_names, list):
+                        class_names = list(class_names)
+                    
                     dataset_info = {
                         'name': st.session_state.selected_file if st.session_state.selected_file else "Custom Dataset",
                         'total_samples': len(st.session_state.df),
                         'features': len(st.session_state.df.columns),
-                        'num_classes': len(st.session_state.trainer.get_class_names())
+                        'num_classes': len(class_names)
                     }
                     
                     feature_importance = st.session_state.trainer.get_feature_importance()
