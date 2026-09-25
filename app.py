@@ -302,7 +302,11 @@ elif page == "⚙️ Model Training":
         if train_button:
             with st.spinner("🔄 Training model... This may take 30-60 seconds"):
                 try:
-                    df = st.session_state.df.head(sample_size)
+                    if len(st.session_state.df) > sample_size:
+                        df = st.session_state.df.sample(n=sample_size, random_state=42)
+                    else:
+                        df = st.session_state.df
+
                     trainer = st.session_state.trainer
                     
                     X_train, X_test, y_train, y_test = trainer.prepare_data(df)
