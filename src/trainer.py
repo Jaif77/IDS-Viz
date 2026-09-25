@@ -10,6 +10,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import warnings
 warnings.filterwarnings('ignore')
 
+
 class IDSTrainer:
     """Core ML training engine for IDS-Viz"""
     
@@ -34,7 +35,6 @@ class IDSTrainer:
                 print(f"✅ Renamed column '{col}' to '{new_col}'")
         
         # ========== FIX: Use correct label column ==========
-        # Try these possible label column names in order
         possible_label_columns = ['Label', 'Attack_Type', 'attack_type', 'label', 'Class']
         
         label_col = None
@@ -44,7 +44,6 @@ class IDSTrainer:
                 print(f"✅ Found label column: '{label_col}'")
                 break
         
-        # If still not found, use the last column
         if label_col is None:
             label_col = data.columns[-1]
             print(f"⚠️ Using last column as label: '{label_col}'")
@@ -89,7 +88,7 @@ class IDSTrainer:
         print(f"🔍 DEBUG: Class names: {self.class_names}")
         print(f"🔍 DEBUG: Is multiclass: {self.is_multiclass}")
         
-        # Split data with stratification
+        # ========== Split data with stratification ==========
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.3, random_state=42, stratify=y
         )
@@ -102,6 +101,7 @@ class IDSTrainer:
     
     def train_model(self, X_train, y_train, model_type='Random Forest'):
         """Train selected model"""
+        
         if model_type == 'Random Forest':
             self.model = RandomForestClassifier(
                 n_estimators=50,
@@ -118,13 +118,14 @@ class IDSTrainer:
             self.model = LogisticRegression(
                 max_iter=1000,
                 random_state=42
-            )# ← multi_class removed
-    
+            )
+        
         self.model.fit(X_train, y_train)
         return self.model
     
     def evaluate_model(self, X_test, y_test):
         """Get all evaluation metrics"""
+        
         y_pred = self.model.predict(X_test)
         
         # ========== DEBUG: Print prediction info ==========
@@ -134,10 +135,9 @@ class IDSTrainer:
         print(f"🔍 DEBUG: y_pred shape: {y_pred.shape}")
         
         if self.is_multiclass:
-            # Only use classification_report if we have both classes
             if len(np.unique(y_test)) > 1:
                 report = classification_report(
-                    y_test, y_pred, 
+                    y_test, y_pred,
                     target_names=self.class_names,
                     output_dict=True,
                     zero_division=0
