@@ -300,31 +300,30 @@ elif page == "⚙️ Model Training":
         )
         
         if train_button:
-            with st.spinner("🔄 Training model... This may take 30-60 seconds"):
+            with st.spinner("🔄 Training model..."):
                 try:
+                    # ========== FIX: Use random sample instead of head ==========
                     if len(st.session_state.df) > sample_size:
                         df = st.session_state.df.sample(n=sample_size, random_state=42)
                     else:
                         df = st.session_state.df
-
+            
                     trainer = st.session_state.trainer
-                    
                     X_train, X_test, y_train, y_test = trainer.prepare_data(df)
                     model = trainer.train_model(X_train, y_train, model_type)
                     metrics, y_pred, cm = trainer.evaluate_model(X_test, y_test)
-                    
+            
                     st.session_state.metrics = metrics
                     st.session_state.cm = cm
                     st.session_state.y_test = y_test
                     st.session_state.y_pred = y_pred
                     st.session_state.model_trained = True
                     st.session_state.current_model = model_type
-                    
+            
                     st.success("✅ Model trained successfully!")
-                    
+            
                 except Exception as e:
                     st.error(f"❌ Training failed: {str(e)}")
-                    st.info("💡 Try using a smaller sample size or different dataset")
     
     with col2:
         if st.session_state.model_trained:
@@ -534,22 +533,33 @@ elif page == "🔬 Decision Boundary":
         if visualize_btn:
             with st.spinner("Generating decision boundary map... This may take 30-60 seconds"):
                 try:
-                    df = st.session_state.df.head(viz_samples)
+                    # ========== FIX 1: Random sample use korun ==========
+                    if len(st.session_state.df) > viz_samples:
+                        df = st.session_state.df.sample(n=viz_samples, random_state=42)
+                    else:
+                        df = st.session_state.df
+            
                     trainer = st.session_state.trainer
-                    
+            
+                    # Prepare data (scaler notun kore fit hobe)
                     X_train, X_test, y_train, y_test = trainer.prepare_data(df)
-                    
+            
+                    # ========== FIX 2: MODEL RETRAIN KORUN ==========
+                    model_type = st.session_state.get('current_model', 'Random Forest')
+                    trainer.train_model(X_train, y_train, model_type)
+            
+                    # Ekhon model notun data diye trained
                     explorer = DecisionBoundaryExplorer(
                         trainer.model, 
                         trainer.scaler, 
                         trainer.feature_names
                     )
-                    
+            
                     X_2d, method_name = explorer.reduce_dimensions(
                         X_test, 
                         method=method_clean
                     )
-                    
+            
                     y_pred = trainer.model.predict(X_test)
                     
                     if hasattr(trainer.model, 'predict_proba'):
