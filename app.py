@@ -57,6 +57,26 @@ if 'y_test_boundary' not in st.session_state:
 if 'y_pred_boundary' not in st.session_state:
     st.session_state.y_pred_boundary = None
 
+# ==================== HELPER FUNCTION ====================
+def find_label_column(df):
+    """Find the label column in a dataframe"""
+    possible_names = ['Label', ' Label', 'label', ' label', 
+                     'Attack_Type', ' Attack_Type', 'attack_type',
+                     'Class', ' Class', 'class', ' class']
+    
+    # Try exact matches first
+    for name in possible_names:
+        if name in df.columns:
+            return name
+    
+    # Try keyword search
+    for col in df.columns:
+        if 'label' in col.lower() or 'attack' in col.lower() or 'class' in col.lower():
+            return col
+    
+    # Fallback to last column
+    return df.columns[-1]
+
 # Sidebar
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/000000/security-checked.png", width=80)
@@ -103,23 +123,18 @@ if page == "📂 Data Upload":
             if st.button("📥 Load Selected File", use_container_width=True):
                 with st.spinner("Loading dataset..."):
                     file_path = os.path.join(cic_path, selected_file)
-                    # ========== FIX: Load MORE rows to include attacks ==========
                     df = pd.read_csv(file_path, nrows=200000)
                     
-                    # ========== FIX: Handle column names with spaces ==========
-                    for col in df.columns:
-                        if col.strip() == 'Label':
-                            df.rename(columns={col: 'Label'}, inplace=True)
-                        elif col.strip().lower() == 'attack_type':
-                            df.rename(columns={col: 'Attack_Type'}, inplace=True)
+                    # Strip column names
+                    df.columns = df.columns.str.strip()
                     
-                    # ========== DEBUG: Show class distribution ==========
-                    label_col = 'Label' if 'Label' in df.columns else df.columns[-1]
-                    st.info(f"📊 Classes found: {df[label_col].unique().tolist()}")
+                    # Find label column
+                    label_col = find_label_column(df)
                     
                     st.session_state.df = df
                     st.session_state.selected_file = selected_file
                     st.success(f"✅ Loaded {len(df):,} rows from {selected_file}")
+                    st.info(f"📋 Label column: `{label_col}`")
         else:
             st.warning("No CIC-IDS2017 files found in data/MachineLearningCVE/")
         
@@ -133,14 +148,17 @@ if page == "📂 Data Upload":
         
         if uploaded_file:
             df = pd.read_csv(uploaded_file)
-            # ========== DEBUG: Show all columns and their unique values ==========
-            st.write("📋 **All Columns and Their First Few Unique Values:**")
-            for col in df.columns:
-                unique_vals = df[col].unique()[:5]
-                st.write(f"  - **{col}**: {unique_vals}")
+            
+            # Strip column names
+            df.columns = df.columns.str.strip()
+            
+            # Find label column
+            label_col = find_label_column(df)
+            
             st.session_state.df = df
             st.session_state.selected_file = uploaded_file.name
             st.success(f"✅ Loaded {len(df):,} rows from {uploaded_file.name}")
+            st.info(f"📋 Label column: `{label_col}`")
     
     with col2:
         if st.session_state.df is not None:
@@ -155,14 +173,10 @@ if page == "📂 Data Upload":
             with metric_col2:
                 st.metric("Features", len(df.columns))
             
-            label_col = None
-            for col in df.columns:
-                if 'label' in col.lower() or 'attack' in col.lower() or col == 'Label' or col == 'Attack_Type':
-                    label_col = col
-                    break
+            # ========== FIX: Use helper function for label detection ==========
+            label_col = find_label_column(df)
             
-            if label_col is None:
-                label_col = df.columns[-1]
+            st.caption(f"📋 Using label column: `{label_col}`")
             
             unique_classes = df[label_col].unique()
             is_multiclass = len(unique_classes) > 2
@@ -172,11 +186,12 @@ if page == "📂 Data Upload":
                 st.caption(f"Classes: {', '.join([str(c)[:15] for c in unique_classes[:5]])}")
                 if len(unique_classes) > 5:
                     st.caption(f"... and {len(unique_classes)-5} more")
-                # ========== MULTI-CLASS PIE CHART ==========
+                
+                # Multi-class pie chart
                 st.subheader("Class Distribution")
-    
+                
                 class_counts = df[label_col].value_counts()
-    
+                
                 fig = px.pie(
                     values=class_counts.values,
                     names=class_counts.index.astype(str),
@@ -186,7 +201,7 @@ if page == "📂 Data Upload":
                 fig.update_traces(textposition='inside', textinfo='percent+label')
                 fig.update_layout(height=400, showlegend=True)
                 st.plotly_chart(fig, use_container_width=True)
-    
+                
                 # Also show bar chart
                 fig_bar = px.bar(
                     x=class_counts.index.astype(str),
@@ -198,8 +213,12 @@ if page == "📂 Data Upload":
                 fig_bar.update_layout(height=400, xaxis_title="Class", yaxis_title="Count")
                 st.plotly_chart(fig_bar, use_container_width=True)
             else:
-                attack_count = sum(df[label_col] != 'BENIGN' if df[label_col].dtype == 'object' 
-                                 else sum(df[label_col] != 0))
+                # Binary classification
+                if df[label_col].dtype == 'object':
+                    attack_count = sum(df[label_col] != 'BENIGN')
+                else:
+                    attack_count = sum(df[label_col] != 0)
+                
                 benign_count = len(df) - attack_count
                 
                 with metric_col3:
@@ -208,6 +227,8 @@ if page == "📂 Data Upload":
                 with metric_col4:
                     st.metric("Benign Samples", f"{benign_count:,}")
                     st.caption(f"{benign_count/len(df)*100:.1f}%")
+                
+                st.subheader("Class Distribution")
                 
                 fig = px.pie(
                     values=[benign_count, attack_count],
@@ -268,7 +289,7 @@ elif page == "⚙️ Model Training":
             max_value=100000,
             value=50000,
             step=1000,
-            help="Use more rows to include attacks. Tuesday dataset has attacks after row 100,000."
+            help="Use more rows to include attacks."
         )
         
         st.markdown("---")
@@ -344,16 +365,13 @@ elif page == "⚙️ Model Training":
             if st.session_state.metrics.get('is_multiclass', False):
                 class_names = st.session_state.trainer.get_class_names()
                 
-                # Ensure class_names is a list of strings
                 if hasattr(class_names, 'tolist'):
                     class_names = class_names.tolist()
                 elif not isinstance(class_names, list):
                     class_names = list(class_names)
                 
-                # Convert confusion matrix to list of lists
                 cm_display = cm.tolist()
                 
-                # Ensure labels match confusion matrix dimensions
                 n_classes = len(cm_display)
                 if len(class_names) != n_classes:
                     class_names = [f"Class {i}" for i in range(n_classes)]
@@ -601,13 +619,20 @@ elif page == "🔧 Perturbation Lab":
         trainer = st.session_state.trainer
         
         X_train, X_test, y_train, y_test = trainer.prepare_data(df_sample)
-        y_pred = trainer.model.predict(X_test)
+        
+        # ========== FIX: Convert to numpy arrays ==========
+        X_test_array = np.array(X_test)
+        y_test_array = np.array(y_test)
+        
+        y_pred = trainer.model.predict(X_test_array)
+        y_pred_array = np.array(y_pred)
+        
         class_names = trainer.get_class_names()
         
-        sample_df = pd.DataFrame(X_test[:, :5], columns=trainer.feature_names[:5])
-        sample_df['True Label'] = y_test
-        sample_df['Predicted'] = y_pred
-        sample_df['Correct'] = (y_test == y_pred)
+        sample_df = pd.DataFrame(X_test_array[:, :5], columns=trainer.feature_names[:5])
+        sample_df['True Label'] = y_test_array
+        sample_df['Predicted'] = y_pred_array
+        sample_df['Correct'] = (y_test_array == y_pred_array)
         
         st.subheader("1. Select a Network Flow")
         
@@ -628,6 +653,11 @@ elif page == "🔧 Perturbation Lab":
             else:
                 filtered_df = sample_df
             
+            if len(filtered_df) == 0:
+                st.warning(f"No samples found for filter: {sample_filter}")
+                st.info("Try selecting 'All Samples' instead.")
+                st.stop()
+            
             sample_index = st.selectbox(
                 f"Select a sample ({len(filtered_df)} available):",
                 range(len(filtered_df)),
@@ -641,9 +671,9 @@ elif page == "🔧 Perturbation Lab":
         
         st.markdown("---")
         
-        sample = X_test[actual_index]
-        true_label = y_test[actual_index]
-        original_pred = y_pred[actual_index]
+        sample = X_test_array[actual_index]
+        true_label = y_test_array[actual_index]
+        original_pred = y_pred_array[actual_index]
         
         if hasattr(trainer.model, 'predict_proba'):
             original_proba = trainer.model.predict_proba(sample.reshape(1, -1))[0]
@@ -703,11 +733,12 @@ elif page == "🔧 Perturbation Lab":
             
             st.markdown("---")
             
-            new_pred, new_proba = trainer.model.predict(modified_sample.reshape(1, -1)), None
+            new_pred = trainer.model.predict(modified_sample.reshape(1, -1))
+            new_pred_class = new_pred[0]
+            
+            new_proba = None
             if hasattr(trainer.model, 'predict_proba'):
                 new_proba = trainer.model.predict_proba(modified_sample.reshape(1, -1))[0]
-            
-            new_pred_class = new_pred[0]
             
             st.subheader("3. Result")
             
