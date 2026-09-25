@@ -53,28 +53,31 @@ class DecisionBoundaryExplorer:
         plot_df['Correct'] = (y_true == y_pred)
         plot_df['Confidence'] = confidence
         
-        # ========== FIX: Convert labels to string properly ==========
+        # ========== FIX: Handle class names with NaN safety ==========
         if class_names is not None:
-            # Convert class_names to list if needed
             if hasattr(class_names, 'tolist'):
                 class_names = class_names.tolist()
             elif not isinstance(class_names, list):
                 class_names = list(class_names)
-            
-            # Convert to string
             class_names = [str(c) for c in class_names]
-            
-            plot_df['True Label Name'] = plot_df['True Label'].apply(
-                lambda x: class_names[int(x)] if int(x) < len(class_names) else str(x)
-            )
-            plot_df['Predicted Name'] = plot_df['Predicted'].apply(
-                lambda x: class_names[int(x)] if int(x) < len(class_names) else str(x)
-            )
         else:
-            plot_df['True Label Name'] = plot_df['True Label'].astype(str)
-            plot_df['Predicted Name'] = plot_df['Predicted'].astype(str)
+            class_names = None
         
-        # ========== FIX: Ensure all labels are strings ==========
+        def get_class_name(x):
+            try:
+                if pd.isna(x):
+                    return 'Unknown'
+                idx = int(float(x))
+                if class_names is not None and 0 <= idx < len(class_names):
+                    return str(class_names[idx])
+                return str(idx)
+            except:
+                return str(x)
+        
+        plot_df['True Label Name'] = plot_df['True Label'].apply(get_class_name)
+        plot_df['Predicted Name'] = plot_df['Predicted'].apply(get_class_name)
+        
+        # Ensure all labels are strings
         plot_df['True Label Name'] = plot_df['True Label Name'].astype(str)
         plot_df['Predicted Name'] = plot_df['Predicted Name'].astype(str)
         
@@ -83,11 +86,13 @@ class DecisionBoundaryExplorer:
         # ========== CORRECT PREDICTIONS ==========
         correct_df = plot_df[plot_df['Correct'] == True].copy()
         
-        # ========== FIX: Use string conversion before .str accessor ==========
-        correct_df['Label_Upper'] = correct_df['True Label Name'].str.upper()
-        
-        benign_correct = correct_df[correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
-        attack_correct = correct_df[~correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
+        if len(correct_df) > 0:
+            correct_df['Label_Upper'] = correct_df['True Label Name'].str.upper()
+            benign_correct = correct_df[correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
+            attack_correct = correct_df[~correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
+        else:
+            benign_correct = pd.DataFrame()
+            attack_correct = pd.DataFrame()
         
         # Benign points
         if len(benign_correct) > 0:
@@ -97,17 +102,13 @@ class DecisionBoundaryExplorer:
                 name='Benign (Correct)',
                 marker=dict(
                     size=8,
-                    color=benign_correct['Confidence'],
-                    colorscale='Greens',
-                    opacity=0.7,
-                    showscale=False
+                    color='#2ECC71',
+                    opacity=0.7
                 ),
                 hovertemplate='<b>✅ CORRECT</b><br>' +
                               '<b>True:</b> %{customdata[0]}<br>' +
-                              '<b>Predicted:</b> %{customdata[1]}<br>' +
-                              '<b>Confidence:</b> %{customdata[2]:.2%}<br>' +
-                              '<b>Type:</b> Benign<extra></extra>',
-                customdata=benign_correct[['True Label Name', 'Predicted Name', 'Confidence']].values
+                              '<b>Predicted:</b> %{customdata[1]}<extra></extra>',
+                customdata=benign_correct[['True Label Name', 'Predicted Name']].values
             ))
         
         # Attack points
@@ -118,17 +119,13 @@ class DecisionBoundaryExplorer:
                 name='Attack (Correct)',
                 marker=dict(
                     size=8,
-                    color=attack_correct['Confidence'],
-                    colorscale='Reds',
-                    opacity=0.7,
-                    showscale=False
+                    color='#E74C3C',
+                    opacity=0.7
                 ),
                 hovertemplate='<b>✅ CORRECT</b><br>' +
                               '<b>True:</b> %{customdata[0]}<br>' +
-                              '<b>Predicted:</b> %{customdata[1]}<br>' +
-                              '<b>Confidence:</b> %{customdata[2]:.2%}<br>' +
-                              '<b>Type:</b> Attack<extra></extra>',
-                customdata=attack_correct[['True Label Name', 'Predicted Name', 'Confidence']].values
+                              '<b>Predicted:</b> %{customdata[1]}<extra></extra>',
+                customdata=attack_correct[['True Label Name', 'Predicted Name']].values
             ))
         
         # ========== MISCLASSIFICATIONS ==========
@@ -147,9 +144,8 @@ class DecisionBoundaryExplorer:
                 ),
                 hovertemplate='<b>⚠️ MISCLASSIFIED!</b><br>' +
                               '<b>True:</b> %{customdata[0]}<br>' +
-                              '<b>Predicted:</b> %{customdata[1]}<br>' +
-                              '<b>Confidence:</b> %{customdata[2]:.2%}<extra></extra>',
-                customdata=wrong_df[['True Label Name', 'Predicted Name', 'Confidence']].values
+                              '<b>Predicted:</b> %{customdata[1]}<extra></extra>',
+                customdata=wrong_df[['True Label Name', 'Predicted Name']].values
             ))
         
         # Update layout
