@@ -204,12 +204,15 @@ if page == "📂 Data Upload":
                 fig_bar.update_layout(height=400, xaxis_title="Class", yaxis_title="Count")
                 st.plotly_chart(fig_bar, use_container_width=True)
             else:
-                # ========== FIX: Handle stripped labels ==========
-                if df[label_col].dtype == 'object':
-                    labels_stripped = df[label_col].astype(str).str.strip().str.upper()
-                    attack_count = sum(labels_stripped != 'BENIGN')
+                # ========== FIX: Handle ArrowStringArray properly ==========
+                if df[label_col].dtype == 'object' or str(df[label_col].dtype) == 'string':
+                    # Convert to list first (handles ArrowStringArray)
+                    labels_list = df[label_col].astype(str).tolist()
+                    # Now use pandas string methods
+                    labels_series = pd.Series(labels_list).str.strip().str.upper()
+                    attack_count = int((labels_series != 'BENIGN').sum())
                 else:
-                    attack_count = sum(df[label_col] != 0)
+                    attack_count = int((df[label_col] != 0).sum())
                 
                 benign_count = len(df) - attack_count
                 
