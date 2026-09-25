@@ -8,6 +8,7 @@ from sklearn.manifold import TSNE
 import warnings
 warnings.filterwarnings('ignore')
 
+
 class DecisionBoundaryExplorer:
     """Creates 2D visualization of model decision boundaries"""
     
@@ -37,13 +38,11 @@ class DecisionBoundaryExplorer:
         # Get confidence scores if probabilities are provided
         if y_proba is not None:
             if len(y_proba.shape) == 2:
-                # Multi-class: take max probability as confidence
                 confidence = np.max(y_proba, axis=1)
             else:
-                # Binary: probability of positive class
                 confidence = y_proba
         else:
-            confidence = np.ones(len(y_true))  # Default if not available
+            confidence = np.ones(len(y_true))
         
         # Create dataframe for plotting
         plot_df = pd.DataFrame()
@@ -54,28 +53,43 @@ class DecisionBoundaryExplorer:
         plot_df['Correct'] = (y_true == y_pred)
         plot_df['Confidence'] = confidence
         
-        # Convert numeric labels to names if provided
+        # ========== FIX: Convert labels to string properly ==========
         if class_names is not None:
-            plot_df['True Label Name'] = plot_df['True Label'].map(
-                lambda x: class_names[x] if isinstance(x, (int, np.integer)) else x
+            # Convert class_names to list if needed
+            if hasattr(class_names, 'tolist'):
+                class_names = class_names.tolist()
+            elif not isinstance(class_names, list):
+                class_names = list(class_names)
+            
+            # Convert to string
+            class_names = [str(c) for c in class_names]
+            
+            plot_df['True Label Name'] = plot_df['True Label'].apply(
+                lambda x: class_names[int(x)] if int(x) < len(class_names) else str(x)
             )
-            plot_df['Predicted Name'] = plot_df['Predicted'].map(
-                lambda x: class_names[x] if isinstance(x, (int, np.integer)) else x
+            plot_df['Predicted Name'] = plot_df['Predicted'].apply(
+                lambda x: class_names[int(x)] if int(x) < len(class_names) else str(x)
             )
         else:
             plot_df['True Label Name'] = plot_df['True Label'].astype(str)
             plot_df['Predicted Name'] = plot_df['Predicted'].astype(str)
         
+        # ========== FIX: Ensure all labels are strings ==========
+        plot_df['True Label Name'] = plot_df['True Label Name'].astype(str)
+        plot_df['Predicted Name'] = plot_df['Predicted Name'].astype(str)
+        
         fig = go.Figure()
         
-        # ========== 1. CORRECT PREDICTIONS (Colored by confidence) ==========
-        correct_df = plot_df[plot_df['Correct'] == True]
+        # ========== CORRECT PREDICTIONS ==========
+        correct_df = plot_df[plot_df['Correct'] == True].copy()
         
-        # Separate Benign and Attack for better coloring
-        benign_correct = correct_df[correct_df['True Label Name'].str.upper().str.contains('BENIGN', na=False)]
-        attack_correct = correct_df[~correct_df['True Label Name'].str.upper().str.contains('BENIGN', na=False)]
+        # ========== FIX: Use string conversion before .str accessor ==========
+        correct_df['Label_Upper'] = correct_df['True Label Name'].str.upper()
         
-        # Benign points - green scale based on confidence
+        benign_correct = correct_df[correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
+        attack_correct = correct_df[~correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
+        
+        # Benign points
         if len(benign_correct) > 0:
             fig.add_trace(go.Scatter(
                 x=benign_correct['x'], y=benign_correct['y'],
@@ -85,7 +99,6 @@ class DecisionBoundaryExplorer:
                     size=8,
                     color=benign_correct['Confidence'],
                     colorscale='Greens',
-                    colorbar=dict(title="Confidence", x=1.02),
                     opacity=0.7,
                     showscale=False
                 ),
@@ -97,7 +110,7 @@ class DecisionBoundaryExplorer:
                 customdata=benign_correct[['True Label Name', 'Predicted Name', 'Confidence']].values
             ))
         
-        # Attack points - red scale based on confidence
+        # Attack points
         if len(attack_correct) > 0:
             fig.add_trace(go.Scatter(
                 x=attack_correct['x'], y=attack_correct['y'],
@@ -118,8 +131,8 @@ class DecisionBoundaryExplorer:
                 customdata=attack_correct[['True Label Name', 'Predicted Name', 'Confidence']].values
             ))
         
-        # ========== 2. MISCLASSIFICATIONS (Yellow X markers with details) ==========
-        wrong_df = plot_df[plot_df['Correct'] == False]
+        # ========== MISCLASSIFICATIONS ==========
+        wrong_df = plot_df[plot_df['Correct'] == False].copy()
         
         if len(wrong_df) > 0:
             fig.add_trace(go.Scatter(
@@ -181,7 +194,6 @@ class DecisionBoundaryExplorer:
             'avg_point_distance': round(avg_distance, 3)
         }
         
-        # Add class-wise statistics if probabilities available
         if y_proba is not None:
             stats['avg_confidence'] = np.mean(np.max(y_proba, axis=1) if len(y_proba.shape) == 2 else y_proba)
         
@@ -206,11 +218,9 @@ class DecisionBoundaryExplorer:
         if sum(misclassified_mask) < 3:
             return None
         
-        # Get centroids of misclassified points
         misclassified_points = X_2d[misclassified_mask]
         centroid = np.mean(misclassified_points, axis=0)
         
-        # Calculate average distance from centroid
         distances = [distance.euclidean(p, centroid) for p in misclassified_points]
         
         clusters = {
