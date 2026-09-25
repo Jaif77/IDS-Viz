@@ -2,6 +2,6 @@ streamlit
 pandas
 numpy
 scikit-learn
-plotly
+plotly>=5.15.0
 matplotlib
 reportlab

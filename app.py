@@ -380,12 +380,13 @@ elif page == "⚙️ Model Training":
                 if len(class_names) != n_classes:
                     class_names = [f"Class {i}" for i in range(n_classes)]
                 
-                fig = ff.create_annotated_heatmap(
-                    z=cm_display,
+                fig = px.imshow(
+                    cm_display,
                     x=class_names,
                     y=class_names,
-                    colorscale='Blues',
-                    showscale=True
+                    color_continuous_scale='Blues',
+                    text_auto=True,
+                    aspect="auto"
                 )
                 fig.update_layout(height=500, title="Confusion Matrix")
                 st.plotly_chart(fig, use_container_width=True)
