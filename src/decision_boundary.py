@@ -1,6 +1,5 @@
 # src/decision_boundary.py
 import pandas as pd
-
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
@@ -33,162 +32,163 @@ class DecisionBoundaryExplorer:
         
         return X_reduced, method_name
     
-        def create_scatter_plot(self, X_2d, y_true, y_pred, y_proba=None, class_names=None, method_name='PCA'):
-            """Create interactive scatter plot with misclassifications highlighted"""
-    
-            # Get confidence scores if probabilities are provided
-            if y_proba is not None:
-                if len(y_proba.shape) == 2:
-                    confidence = np.max(y_proba, axis=1)
-                else:
-                    confidence = y_proba
+    def create_scatter_plot(self, X_2d, y_true, y_pred, y_proba=None, class_names=None, method_name='PCA'):
+        """Create interactive scatter plot with misclassifications highlighted"""
+        
+        # Get confidence scores if probabilities are provided
+        if y_proba is not None:
+            if len(y_proba.shape) == 2:
+                confidence = np.max(y_proba, axis=1)
             else:
-                confidence = np.ones(len(y_true))
-    
-            # Create dataframe for plotting
-            plot_df = pd.DataFrame()
-            plot_df['x'] = X_2d[:, 0].tolist()
-            plot_df['y'] = X_2d[:, 1].tolist()
-            plot_df['True Label'] = y_true
-            plot_df['Predicted'] = y_pred
-            plot_df['Correct'] = (y_true == y_pred)
-            plot_df['Confidence'] = confidence.tolist() if hasattr(confidence, 'tolist') else confidence
-    
-            # ========== FIX: Handle class names with NaN safety ==========
-            if class_names is not None:
-                if hasattr(class_names, 'tolist'):
-                    class_names = class_names.tolist()
-                elif not isinstance(class_names, list):
-                    class_names = list(class_names)
-                class_names = [str(c) for c in class_names]
-            else:
-                class_names = None
-    
-            def get_class_name(x):
-                try:
-                    if pd.isna(x):
-                        return 'Unknown'
-                    idx = int(float(x))
-                    if class_names is not None and 0 <= idx < len(class_names):
-                        return str(class_names[idx])
-                    return str(idx)
-                except:
-                    return str(x)
-    
-            plot_df['True Label Name'] = plot_df['True Label'].apply(get_class_name)
-            plot_df['Predicted Name'] = plot_df['Predicted'].apply(get_class_name)
-    
-            # Ensure all labels are strings
-            plot_df['True Label Name'] = plot_df['True Label Name'].astype(str)
-            plot_df['Predicted Name'] = plot_df['Predicted Name'].astype(str)
-    
-            fig = go.Figure()
-    
-            # ========== CORRECT PREDICTIONS ==========
-            correct_df = plot_df[plot_df['Correct'] == True].copy()
-    
-            if len(correct_df) > 0:
-                correct_df['Label_Upper'] = correct_df['True Label Name'].str.upper()
-                benign_correct = correct_df[correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
-                attack_correct = correct_df[~correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
-            else:
-                benign_correct = pd.DataFrame()
-                attack_correct = pd.DataFrame()
-    
-            # ========== FIX: Use explicit x and y lists ==========
-            if len(benign_correct) > 0:
-                fig.add_trace(go.Scatter(
-                    x=benign_correct['x'].tolist(),
-                    y=benign_correct['y'].tolist(),
-                    mode='markers',
-                    name='Benign (Correct)',
-                    marker=dict(
-                        size=8,
-                        color='#2ECC71',
-                        opacity=0.7,
-                        line=dict(width=0.5, color='white')
-                    ),
-                    hovertemplate='<b>✅ CORRECT (Benign)</b><br>' +
-                                '<b>True:</b> %{customdata[0]}<br>' +
-                                '<b>Predicted:</b> %{customdata[1]}<extra></extra>',
-                    customdata=benign_correct[['True Label Name', 'Predicted Name']].values.tolist()
-                ))
-    
-            if len(attack_correct) > 0:
-                fig.add_trace(go.Scatter(
-                    x=attack_correct['x'].tolist(),
-                    y=attack_correct['y'].tolist(),
-                    mode='markers',
-                    name='Attack (Correct)',
-                    marker=dict(
-                        size=8,
-                        color='#E74C3C',
-                        opacity=0.7,
-                        line=dict(width=0.5, color='white')
-                    ),
-                    hovertemplate='<b>✅ CORRECT (Attack)</b><br>' +
-                                '<b>True:</b> %{customdata[0]}<br>' +
-                                '<b>Predicted:</b> %{customdata[1]}<extra></extra>',
-                    customdata=attack_correct[['True Label Name', 'Predicted Name']].values.tolist()
-                ))
-    
-            # ========== MISCLASSIFICATIONS ==========
-            wrong_df = plot_df[plot_df['Correct'] == False].copy()
-    
-            if len(wrong_df) > 0:
-                fig.add_trace(go.Scatter(
-                    x=wrong_df['x'].tolist(),
-                    y=wrong_df['y'].tolist(),
-                    mode='markers',
-                    name='⚠️ Misclassified',
-                    marker=dict(
-                        symbol='x',
-                        size=12,
-                        color='#F1C40F',
-                        line=dict(width=2, color='black')
-                    ),
-                    hovertemplate='<b>⚠️ MISCLASSIFIED</b><br>' +
-                                '<b>True:</b> %{customdata[0]}<br>' +
-                                '<b>Predicted:</b> %{customdata[1]}<extra></extra>',
-                    customdata=wrong_df[['True Label Name', 'Predicted Name']].values.tolist()
-                ))
-    
-            # ========== FIX: Ensure axes are visible ==========
-            fig.update_layout(
-                title=f'Decision Boundary Visualization ({method_name})',
-                xaxis=dict(
-                    title='Component 1',
-                    showgrid=True,
-                    gridcolor='rgba(128, 128, 128, 0.2)',
-                    zeroline=True,
-                    zerolinecolor='rgba(128, 128, 128, 0.5)'
+                confidence = y_proba
+        else:
+            confidence = np.ones(len(y_true))
+        
+        # Create dataframe for plotting
+        plot_df = pd.DataFrame()
+        plot_df['x'] = X_2d[:, 0].tolist()
+        plot_df['y'] = X_2d[:, 1].tolist()
+        plot_df['True Label'] = y_true
+        plot_df['Predicted'] = y_pred
+        plot_df['Correct'] = (y_true == y_pred)
+        plot_df['Confidence'] = confidence.tolist() if hasattr(confidence, 'tolist') else confidence
+        
+        # ========== Handle class names with NaN safety ==========
+        if class_names is not None:
+            if hasattr(class_names, 'tolist'):
+                class_names = class_names.tolist()
+            elif not isinstance(class_names, list):
+                class_names = list(class_names)
+            class_names = [str(c) for c in class_names]
+        else:
+            class_names = None
+        
+        def get_class_name(x):
+            try:
+                if pd.isna(x):
+                    return 'Unknown'
+                idx = int(float(x))
+                if class_names is not None and 0 <= idx < len(class_names):
+                    return str(class_names[idx])
+                return str(idx)
+            except:
+                return str(x)
+        
+        plot_df['True Label Name'] = plot_df['True Label'].apply(get_class_name)
+        plot_df['Predicted Name'] = plot_df['Predicted'].apply(get_class_name)
+        
+        # Ensure all labels are strings
+        plot_df['True Label Name'] = plot_df['True Label Name'].astype(str)
+        plot_df['Predicted Name'] = plot_df['Predicted Name'].astype(str)
+        
+        fig = go.Figure()
+        
+        # ========== CORRECT PREDICTIONS ==========
+        correct_df = plot_df[plot_df['Correct'] == True].copy()
+        
+        if len(correct_df) > 0:
+            correct_df['Label_Upper'] = correct_df['True Label Name'].str.upper()
+            benign_correct = correct_df[correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
+            attack_correct = correct_df[~correct_df['Label_Upper'].str.contains('BENIGN', na=False)]
+        else:
+            benign_correct = pd.DataFrame()
+            attack_correct = pd.DataFrame()
+        
+        # Benign points
+        if len(benign_correct) > 0:
+            fig.add_trace(go.Scatter(
+                x=benign_correct['x'].tolist(),
+                y=benign_correct['y'].tolist(),
+                mode='markers',
+                name='Benign (Correct)',
+                marker=dict(
+                    size=8,
+                    color='#2ECC71',
+                    opacity=0.7,
+                    line=dict(width=0.5, color='white')
                 ),
-                yaxis=dict(
-                    title='Component 2',
-                    showgrid=True,
-                    gridcolor='rgba(128, 128, 128, 0.2)',
-                    zeroline=True,
-                    zerolinecolor='rgba(128, 128, 128, 0.5)'
+                hovertemplate='<b>✅ CORRECT (Benign)</b><br>' +
+                              '<b>True:</b> %{customdata[0]}<br>' +
+                              '<b>Predicted:</b> %{customdata[1]}<extra></extra>',
+                customdata=benign_correct[['True Label Name', 'Predicted Name']].values.tolist()
+            ))
+        
+        # Attack points
+        if len(attack_correct) > 0:
+            fig.add_trace(go.Scatter(
+                x=attack_correct['x'].tolist(),
+                y=attack_correct['y'].tolist(),
+                mode='markers',
+                name='Attack (Correct)',
+                marker=dict(
+                    size=8,
+                    color='#E74C3C',
+                    opacity=0.7,
+                    line=dict(width=0.5, color='white')
                 ),
-                hovermode='closest',
-                legend=dict(
-                    x=0.01, y=0.99,
-                    bgcolor='rgba(255, 255, 255, 0.8)',
-                    bordercolor='black',
-                    borderwidth=1
+                hovertemplate='<b>✅ CORRECT (Attack)</b><br>' +
+                              '<b>True:</b> %{customdata[0]}<br>' +
+                              '<b>Predicted:</b> %{customdata[1]}<extra></extra>',
+                customdata=attack_correct[['True Label Name', 'Predicted Name']].values.tolist()
+            ))
+        
+        # ========== MISCLASSIFICATIONS ==========
+        wrong_df = plot_df[plot_df['Correct'] == False].copy()
+        
+        if len(wrong_df) > 0:
+            fig.add_trace(go.Scatter(
+                x=wrong_df['x'].tolist(),
+                y=wrong_df['y'].tolist(),
+                mode='markers',
+                name='⚠️ Misclassified',
+                marker=dict(
+                    symbol='x',
+                    size=12,
+                    color='#F1C40F',
+                    line=dict(width=2, color='black')
                 ),
-                height=650,
-                plot_bgcolor='rgba(240, 240, 240, 0.1)',
-                paper_bgcolor='rgba(0, 0, 0, 0)'
-            )
-    
-            return fig
+                hovertemplate='<b>⚠️ MISCLASSIFIED</b><br>' +
+                              '<b>True:</b> %{customdata[0]}<br>' +
+                              '<b>Predicted:</b> %{customdata[1]}<extra></extra>',
+                customdata=wrong_df[['True Label Name', 'Predicted Name']].values.tolist()
+            ))
+        
+        # ========== Layout ==========
+        fig.update_layout(
+            title=f'Decision Boundary Visualization ({method_name})',
+            xaxis=dict(
+                title='Component 1',
+                showgrid=True,
+                gridcolor='rgba(128, 128, 128, 0.2)',
+                zeroline=True,
+                zerolinecolor='rgba(128, 128, 128, 0.5)'
+            ),
+            yaxis=dict(
+                title='Component 2',
+                showgrid=True,
+                gridcolor='rgba(128, 128, 128, 0.2)',
+                zeroline=True,
+                zerolinecolor='rgba(128, 128, 128, 0.5)'
+            ),
+            hovermode='closest',
+            legend=dict(
+                x=0.01, y=0.99,
+                bgcolor='rgba(255, 255, 255, 0.8)',
+                bordercolor='black',
+                borderwidth=1
+            ),
+            height=650,
+            plot_bgcolor='rgba(240, 240, 240, 0.1)',
+            paper_bgcolor='rgba(0, 0, 0, 0)'
+        )
+        
+        return fig
     
     def get_statistics(self, X_2d, y_true, y_pred, y_proba=None):
         """Calculate statistics about the visualization"""
         
         total = len(y_true)
-        correct = sum(y_true == y_pred)
+        correct = int(sum(y_true == y_pred))
         wrong = total - correct
         
         from scipy.spatial import distance
@@ -208,7 +208,7 @@ class DecisionBoundaryExplorer:
         }
         
         if y_proba is not None:
-            stats['avg_confidence'] = np.mean(np.max(y_proba, axis=1) if len(y_proba.shape) == 2 else y_proba)
+            stats['avg_confidence'] = float(np.mean(np.max(y_proba, axis=1) if len(y_proba.shape) == 2 else y_proba))
         
         return stats
     
