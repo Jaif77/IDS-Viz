@@ -630,7 +630,12 @@ elif page == "🔧 Perturbation Lab":
     st.markdown("---")
     
     try:
-        df_sample = st.session_state.df.head(10000)
+        # ========== FIX: Use random sample ==========
+        if len(st.session_state.df) > 3000:
+            df_sample = st.session_state.df.sample(n=3000, random_state=42).reset_index(drop=True)
+        else:
+            df_sample = st.session_state.df.head(3000)
+        
         trainer = st.session_state.trainer
         
         X_train, X_test, y_train, y_test = trainer.prepare_data(df_sample)
@@ -643,6 +648,11 @@ elif page == "🔧 Perturbation Lab":
         y_pred_array = np.array(y_pred)
         
         class_names = trainer.get_class_names()
+        if hasattr(class_names, 'tolist'):
+            class_names = class_names.tolist()
+        elif not isinstance(class_names, list):
+            class_names = list(class_names)
+        class_names = [str(c) for c in class_names]
         
         sample_df = pd.DataFrame(X_test_array[:, :5], columns=trainer.feature_names[:5])
         sample_df['True Label'] = y_test_array
@@ -662,11 +672,11 @@ elif page == "🔧 Perturbation Lab":
         
         with col2:
             if sample_filter == "Only Misclassified":
-                filtered_df = sample_df[sample_df['Correct'] == False]
+                filtered_df = sample_df[sample_df['Correct'] == False].reset_index(drop=True)
             elif sample_filter == "Only Correct":
-                filtered_df = sample_df[sample_df['Correct'] == True]
+                filtered_df = sample_df[sample_df['Correct'] == True].reset_index(drop=True)
             else:
-                filtered_df = sample_df
+                filtered_df = sample_df.reset_index(drop=True)
             
             if len(filtered_df) == 0:
                 st.warning(f"No samples found for filter: {sample_filter}")
@@ -679,10 +689,7 @@ elif page == "🔧 Perturbation Lab":
                 format_func=lambda x: f"Sample {x} | True: {filtered_df.iloc[x]['True Label']} | Pred: {filtered_df.iloc[x]['Predicted']}"
             )
         
-        if sample_filter == "All Samples":
-            actual_index = sample_index
-        else:
-            actual_index = filtered_df.index[sample_index]
+        actual_index = sample_index
         
         st.markdown("---")
         
@@ -690,16 +697,37 @@ elif page == "🔧 Perturbation Lab":
         true_label = y_test_array[actual_index]
         original_pred = y_pred_array[actual_index]
         
+        # ========== FIX: Convert to int safely ==========
+        try:
+            true_label_int = int(float(true_label))
+        except:
+            true_label_int = 0
+        
+        try:
+            original_pred_int = int(float(original_pred))
+        except:
+            original_pred_int = 0
+        
         if hasattr(trainer.model, 'predict_proba'):
             original_proba = trainer.model.predict_proba(sample.reshape(1, -1))[0]
         else:
             original_proba = None
         
+        # ========== FIX: Safe class name function ==========
+        def get_safe_class_name(idx, class_names):
+            try:
+                idx = int(float(idx))
+                if 0 <= idx < len(class_names):
+                    return str(class_names[idx])
+                return str(idx)
+            except:
+                return str(idx)
+        
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            st.metric("True Label", class_names[true_label] if true_label < len(class_names) else str(true_label))
+            st.metric("True Label", get_safe_class_name(true_label_int, class_names))
         with col_b:
-            st.metric("Original Prediction", class_names[original_pred] if original_pred < len(class_names) else str(original_pred))
+            st.metric("Original Prediction", get_safe_class_name(original_pred_int, class_names))
         with col_c:
             if original_proba is not None:
                 st.metric("Confidence", f"{max(original_proba):.2%}")
@@ -729,16 +757,19 @@ elif page == "🔧 Perturbation Lab":
                 col_idx = idx % 2
                 with cols[col_idx]:
                     original_val = sample[feature_idx]
-                    min_val = max(0, original_val * 0.1)
-                    max_val = original_val * 10 if original_val > 0 else 100
+                    min_val = float(min(0, original_val * 0.1))
+                    max_val = float(max(1, original_val * 10)) if original_val > 0 else 100.0
+                    
+                    if min_val >= max_val:
+                        max_val = min_val + 1
                     
                     new_val = st.slider(
                         f"📊 {feature_name[:30]}",
-                        min_value=float(min_val),
-                        max_value=float(max_val),
+                        min_value=min_val,
+                        max_value=max_val,
                         value=float(original_val),
-                        step=float(original_val / 50) if original_val != 0 else 0.01,
-                        key=f"perturb_{feature_idx}"
+                        step=float((max_val - min_val) / 100),
+                        key=f"perturb_{idx}"
                     )
                     
                     if new_val != original_val:
@@ -751,16 +782,21 @@ elif page == "🔧 Perturbation Lab":
             new_pred = trainer.model.predict(modified_sample.reshape(1, -1))
             new_pred_class = new_pred[0]
             
+            try:
+                new_pred_int = int(float(new_pred_class))
+            except:
+                new_pred_int = 0
+            
             new_proba = None
             if hasattr(trainer.model, 'predict_proba'):
                 new_proba = trainer.model.predict_proba(modified_sample.reshape(1, -1))[0]
             
             st.subheader("3. Result")
             
-            if new_pred_class == original_pred:
-                st.success(f"✅ Prediction remains: **{class_names[new_pred_class]}**")
+            if new_pred_int == original_pred_int:
+                st.success(f"✅ Prediction remains: **{get_safe_class_name(new_pred_int, class_names)}**")
             else:
-                st.error(f"⚠️ PREDICTION FLIPPED! From **{class_names[original_pred]}** to **{class_names[new_pred_class]}**")
+                st.error(f"⚠️ PREDICTION FLIPPED! From **{get_safe_class_name(original_pred_int, class_names)}** to **{get_safe_class_name(new_pred_int, class_names)}**")
                 
                 if changes_made:
                     st.warning(f"📌 Changes made to: {', '.join(changes_made[:5])}")
@@ -791,7 +827,7 @@ elif page == "🔧 Perturbation Lab":
     except Exception as e:
         st.error(f"Error: {str(e)}")
         st.info("Try using a smaller sample size or retrain your model.")
-
+        
 # ==================== PAGE 5: REPORTS ====================
 else:
     st.title("📄 Generate Analysis Report")
