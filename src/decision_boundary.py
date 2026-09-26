@@ -1,6 +1,6 @@
 # src/decision_boundary.py
 import pandas as pd
-from app import X_2d
+
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
