@@ -10,18 +10,19 @@ venv/
 .qodo/
 
 # Large files (do not upload)
-*.csv
 *.exe
 *.zip
-*.pdf
 OllamaSetup.exe
-Benign Traffic.csv
-DDoS ICMP Flood.csv
 misclassified_samples.csv
 terms-and-conditions.pdf
+*.docx
 
-# Data folders
-data/
+# Ignore large CSV files (over 100 MB) only
+data/MachineLearningCVE/Monday-WorkingHours.pcap_ISCX.csv
+data/MachineLearningCVE/Tuesday-WorkingHours.pcap_ISCX.csv
+data/MachineLearningCVE/Wednesday-workingHours.pcap_ISCX.csv
+
+# Ignore other folders
 extra dataset/
 04.04.2026/
 notebook/
@@ -39,6 +40,3 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
-
-# Word documents
-*.docx
