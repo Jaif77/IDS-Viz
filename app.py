@@ -688,7 +688,6 @@ elif page == "🔧 Perturbation Lab":
                 range(len(filtered_df)),
                 format_func=lambda x: f"Sample {filtered_df.index[x]} | True: {filtered_df.iloc[x]['True Label']} | Pred: {filtered_df.iloc[x]['Predicted']}"
             )
-        
         actual_index = filtered_df.index[sample_index]
         
         st.markdown("---")
