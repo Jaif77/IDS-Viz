@@ -672,11 +672,11 @@ elif page == "🔧 Perturbation Lab":
         
         with col2:
             if sample_filter == "Only Misclassified":
-                filtered_df = sample_df[sample_df['Correct'] == False].reset_index(drop=True)
+                filtered_df = sample_df[sample_df['Correct'] == False]
             elif sample_filter == "Only Correct":
-                filtered_df = sample_df[sample_df['Correct'] == True].reset_index(drop=True)
+                filtered_df = sample_df[sample_df['Correct'] == True]
             else:
-                filtered_df = sample_df.reset_index(drop=True)
+                filtered_df = sample_df 
             
             if len(filtered_df) == 0:
                 st.warning(f"No samples found for filter: {sample_filter}")
@@ -686,7 +686,7 @@ elif page == "🔧 Perturbation Lab":
             sample_index = st.selectbox(
                 f"Select a sample ({len(filtered_df)} available):",
                 range(len(filtered_df)),
-                format_func=lambda x: f"Sample {x} | True: {filtered_df.iloc[x]['True Label']} | Pred: {filtered_df.iloc[x]['Predicted']}"
+                format_func=lambda x: f"Sample {filtered_df.index[x]} | True: {filtered_df.iloc[x]['True Label']} | Pred: {filtered_df.iloc[x]['Predicted']}"
             )
         
         actual_index = sample_index
